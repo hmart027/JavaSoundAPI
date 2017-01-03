@@ -5,6 +5,8 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.DataLine.Info;
 import javax.sound.sampled.Line;
+import javax.sound.sampled.LineEvent;
+import javax.sound.sampled.LineListener;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
@@ -171,57 +173,35 @@ public class JavaSoundAPIMain {
 	
 	public static void main(String[] args) {
 		
-//		getMixerInfo();	
-//		if(1==1)System.exit(0);
-		
-
 		listCameraInputDevices();
-		DataLine microphone = getCameraInputDevices();
-		double cSample = 0, lSample = 0, lch1 = 0, lch2 = 0, lch3 = 0, lch4 = 0;
-		double dx = 1d/44100.0;
+		
 		plotter = new PlotterWindow();
-		PlotterWindow.pane1.setMaxY(5000);
-		PlotterWindow.pane1.setMinY(-5000);
-		PlotterWindow.pane1.setdeltaY(100);
-		int fCount = 0;
+		PlotterWindow.pane1.setMaxY(10000);
+		PlotterWindow.pane1.setMinY(-10000);
+		PlotterWindow.pane1.setdeltaY(1000);
+		PlotterWindow.pane1.setMaxX(5);
+		PlotterWindow.pane1.setMinX(0);
+		PlotterWindow.pane1.setdeltaX((5-0)*0.1);
+
+		PlotterWindow.pane2.setMaxY(10000);
+		PlotterWindow.pane2.setMinY(-10000);
+		PlotterWindow.pane2.setdeltaY(1000);
+		PlotterWindow.pane2.setMaxX(5);
+		PlotterWindow.pane2.setMinX(0);
+		PlotterWindow.pane2.setdeltaX((5-0)*0.1);
+		
+		PSEyeCamAudio[] cams = PSEyeCamAudio.getAvailablePSEye();
 		try {
-			microphone.open();
-			microphone.start();
-			byte[]	frame = new byte[microphone.getFormat().getFrameSize()];
-			while(microphone.isOpen()){
-				if(microphone.available() >= frame.length){
-					fCount++;
-					int r = ((TargetDataLine) microphone).read(frame, 0, frame.length);
-					double ch1 = ((int)frame[0])<<8 | (frame[1] & 0x0FF);
-					double ch2 = ((int)frame[2])<<8 | (frame[3] & 0x0FF);
-					double ch3 = ((int)frame[4])<<8 | (frame[5] & 0x0FF);
-					double ch4 = ((int)frame[6])<<8 | (frame[7] & 0x0FF);
-					
-					if(fCount>=100){
-						PlotterWindow.pane1.drawLine(lSample, lch1+3000, cSample, ch1+3000);
-						PlotterWindow.pane1.drawLine(lSample, lch2+1000, cSample, ch2+1000, java.awt.Color.RED);
-						PlotterWindow.pane1.drawLine(lSample, lch3-1000, cSample, ch3-1000, java.awt.Color.GREEN);
-						PlotterWindow.pane1.drawLine(lSample, lch4-3000, cSample, ch4-3000, java.awt.Color.YELLOW);
-						double maxX = PlotterWindow.pane1.getMaxX();
-						double minX = PlotterWindow.pane1.getMinX();
-						double dX = maxX-minX;
-						if(maxX<=cSample){
-							PlotterWindow.pane1.setMaxX(maxX+dX*0.1);
-							PlotterWindow.pane1.setMinX(minX+dX*0.1);
-						}
-						lSample = cSample;
-						lch1 = ch1;
-						lch2 = ch2;
-						lch3 = ch3;
-						lch4 = ch4;
-						fCount = 0;
-					}
-					cSample += dx;
-				}
-			}
+			DataLine cam1 = cams[0].getTargetDataLine();
+			cam1.addLineListener(new Mic1Listener());
+			cam1.open();
 			
-		} catch (LineUnavailableException e) {
-			e.printStackTrace();
+			DataLine cam2 = cams[1].getTargetDataLine();
+			cam2.addLineListener(new Mic2Listener());
+			cam2.open();
+			
+		} catch (LineUnavailableException e1) {
+			e1.printStackTrace();
 		}
 		
 //		new JavaSoundAPIMain();
@@ -247,4 +227,119 @@ public class JavaSoundAPIMain {
 //		}
 //		PlotterWindow.pane2.repaint();
 	}
+	
+	public static class Mic1Listener extends Thread implements LineListener{
+		
+		private TargetDataLine microphone;
+		
+		byte[]	frame;
+		double cSample = 0, lSample = 0, lch1 = 0, lch2 = 0, lch3 = 0, lch4 = 0;
+		double dx = 1d/44100.0;
+		
+		@Override
+		public void run(){
+
+			int fCount = 0;
+			while(microphone.isOpen()){
+				if(microphone.available() >= frame.length){
+					fCount++;
+					((TargetDataLine) microphone).read(frame, 0, frame.length);
+					double ch1 = ((int)frame[0])<<8 | (frame[1] & 0x0FF);
+					double ch2 = ((int)frame[2])<<8 | (frame[3] & 0x0FF);
+					double ch3 = ((int)frame[4])<<8 | (frame[5] & 0x0FF);
+					double ch4 = ((int)frame[6])<<8 | (frame[7] & 0x0FF);
+					
+					if(fCount>=100){
+						PlotterWindow.pane1.drawLine(lSample, lch1+6000, cSample, ch1+6000);
+						PlotterWindow.pane1.drawLine(lSample, lch2+2000, cSample, ch2+2000, java.awt.Color.RED);
+						PlotterWindow.pane1.drawLine(lSample, lch3-2000, cSample, ch3-2000, java.awt.Color.GREEN);
+						PlotterWindow.pane1.drawLine(lSample, lch4-6000, cSample, ch4-6000, java.awt.Color.YELLOW);
+						double maxX = PlotterWindow.pane1.getMaxX();
+						double minX = PlotterWindow.pane1.getMinX();
+						if(maxX<=cSample){
+							PlotterWindow.pane1.setMaxX(maxX+cSample-lSample);
+							PlotterWindow.pane1.setMinX(minX+cSample-lSample);
+						}
+						lSample = cSample;
+						lch1 = ch1;
+						lch2 = ch2;
+						lch3 = ch3;
+						lch4 = ch4;
+						fCount = 0;
+					}
+					cSample += dx;
+				}
+			}
+		}
+		
+		@Override
+		public void update(LineEvent event) {
+			if (event.getType().equals(LineEvent.Type.OPEN)) {
+				microphone = (TargetDataLine) event.getSource();
+				microphone.start();
+				frame = new byte[microphone.getFormat().getFrameSize()];
+				this.start();
+			}		
+			
+		}
+		
+	}
+	
+	public static class Mic2Listener extends Thread implements LineListener{
+		
+		private TargetDataLine microphone;
+		
+		byte[]	frame;
+		double cSample = 0, lSample = 0, lch1 = 0, lch2 = 0, lch3 = 0, lch4 = 0;
+		double dx = 1d/44100.0;
+		
+		@Override
+		public void run(){
+
+			int fCount = 0;
+			while(microphone.isOpen()){
+				if(microphone.available() >= frame.length){
+					fCount++;
+					((TargetDataLine) microphone).read(frame, 0, frame.length);
+					double ch1 = ((int)frame[0])<<8 | (frame[1] & 0x0FF);
+					double ch2 = ((int)frame[2])<<8 | (frame[3] & 0x0FF);
+					double ch3 = ((int)frame[4])<<8 | (frame[5] & 0x0FF);
+					double ch4 = ((int)frame[6])<<8 | (frame[7] & 0x0FF);
+					
+					if(fCount>=100){
+						PlotterWindow.pane2.drawLine(lSample, lch1+6000, cSample, ch1+6000);
+						PlotterWindow.pane2.drawLine(lSample, lch2+2000, cSample, ch2+2000, java.awt.Color.RED);
+						PlotterWindow.pane2.drawLine(lSample, lch3-2000, cSample, ch3-2000, java.awt.Color.GREEN);
+						PlotterWindow.pane2.drawLine(lSample, lch4-6000, cSample, ch4-6000, java.awt.Color.YELLOW);
+						double maxX = PlotterWindow.pane2.getMaxX();
+						double minX = PlotterWindow.pane2.getMinX();
+						if(maxX<=cSample){
+							PlotterWindow.pane2.setMaxX(maxX+cSample-lSample);
+							PlotterWindow.pane2.setMinX(minX+cSample-lSample);
+						}
+						lSample = cSample;
+						lch1 = ch1;
+						lch2 = ch2;
+						lch3 = ch3;
+						lch4 = ch4;
+						fCount = 0;
+					}
+					cSample += dx;
+				}
+			}
+		}
+		
+		@Override
+		public void update(LineEvent event) {
+			if (event.getType().equals(LineEvent.Type.OPEN)) {			
+				microphone = (TargetDataLine) event.getSource();
+				microphone.start();
+				frame = new byte[microphone.getFormat().getFrameSize()];
+				this.start();
+			}
+			
+		}
+		
+	}
+	
 }
