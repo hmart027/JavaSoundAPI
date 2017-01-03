@@ -2,6 +2,8 @@ import javax.dsp.tools.Complex;
 import javax.dsp.tools.FFT;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.DataLine.Info;
 import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
@@ -102,6 +104,61 @@ public class JavaSoundAPIMain {
 			System.out.println();
 		 }
 	}
+	
+	public static void listCameraInputDevices(){
+		Mixer.Info[] mixerInfos = AudioSystem.getMixerInfo();
+		System.out.println("Mixers: ");
+		for (Mixer.Info info: mixerInfos){
+			// Get only mixes that contain the string "camera" in their names
+			if(!info.getName().toLowerCase().contains("camera")) continue;
+			
+			Mixer m = AudioSystem.getMixer(info);
+			//If the mixer contain no targetDataLines (no input lines) skip it
+			if(m.getTargetLineInfo().length<=0) continue;
+			
+			System.out.println(info);
+			System.out.println("\t"+info.getDescription());
+
+			System.out.println("\tTarget Lines: ");
+			Line.Info[] lineInfos;			
+			lineInfos = m.getTargetLineInfo();
+			for (Line.Info lineInfo:lineInfos){
+				System.out.println ("\t\t"+m+"---"+lineInfo);
+				
+				for(AudioFormat format: ((DataLine.Info)lineInfo).getFormats()){
+					System.out.println("\t\t\t"+format);
+				}
+						
+				try {
+					DataLine line = (DataLine) m.getLine(lineInfo);
+					System.out.println("\t"+line.getFormat());
+				} catch (LineUnavailableException e) {
+					e.printStackTrace();
+				}
+			}
+			System.out.println();
+		 }
+	}
+	
+	public static DataLine getCameraInputDevices(){
+		Mixer.Info[] mixerInfos = AudioSystem.getMixerInfo();
+		for (Mixer.Info info: mixerInfos){
+			// Get only mixes that contain the string "camera" in their names
+			if(!info.getName().toLowerCase().contains("camera")) continue;
+			
+			Mixer m = AudioSystem.getMixer(info);
+			//If the mixer contain no targetDataLines (no input lines) skip it
+			if(m.getTargetLineInfo().length<=0) continue;
+										
+			try {
+				return (DataLine) m.getLine(new DataLine.Info(DataLine.class,
+						new AudioFormat(44100, 16, 4, true, true)));
+			} catch (LineUnavailableException e) {
+				e.printStackTrace();
+			}
+		 }
+		return null;
+	}
 
 	public static void getMixerInfo(){
 		for(Mixer.Info i: AudioSystem.getMixerInfo()){
@@ -118,7 +175,55 @@ public class JavaSoundAPIMain {
 //		if(1==1)System.exit(0);
 		
 
-		listInputDevices();
+		listCameraInputDevices();
+		DataLine microphone = getCameraInputDevices();
+		double cSample = 0, lSample = 0, lch1 = 0, lch2 = 0, lch3 = 0, lch4 = 0;
+		double dx = 1d/44100.0;
+		plotter = new PlotterWindow();
+		PlotterWindow.pane1.setMaxY(5000);
+		PlotterWindow.pane1.setMinY(-5000);
+		PlotterWindow.pane1.setdeltaY(100);
+		int fCount = 0;
+		try {
+			microphone.open();
+			microphone.start();
+			byte[]	frame = new byte[microphone.getFormat().getFrameSize()];
+			while(microphone.isOpen()){
+				if(microphone.available() >= frame.length){
+					fCount++;
+					int r = ((TargetDataLine) microphone).read(frame, 0, frame.length);
+					double ch1 = ((int)frame[0])<<8 | (frame[1] & 0x0FF);
+					double ch2 = ((int)frame[2])<<8 | (frame[3] & 0x0FF);
+					double ch3 = ((int)frame[4])<<8 | (frame[5] & 0x0FF);
+					double ch4 = ((int)frame[6])<<8 | (frame[7] & 0x0FF);
+					
+					if(fCount>=100){
+						PlotterWindow.pane1.drawLine(lSample, lch1+3000, cSample, ch1+3000);
+						PlotterWindow.pane1.drawLine(lSample, lch2+1000, cSample, ch2+1000, java.awt.Color.RED);
+						PlotterWindow.pane1.drawLine(lSample, lch3-1000, cSample, ch3-1000, java.awt.Color.GREEN);
+						PlotterWindow.pane1.drawLine(lSample, lch4-3000, cSample, ch4-3000, java.awt.Color.YELLOW);
+						double maxX = PlotterWindow.pane1.getMaxX();
+						double minX = PlotterWindow.pane1.getMinX();
+						double dX = maxX-minX;
+						if(maxX<=cSample){
+							PlotterWindow.pane1.setMaxX(maxX+dX*0.1);
+							PlotterWindow.pane1.setMinX(minX+dX*0.1);
+						}
+						lSample = cSample;
+						lch1 = ch1;
+						lch2 = ch2;
+						lch3 = ch3;
+						lch4 = ch4;
+						fCount = 0;
+					}
+					cSample += dx;
+				}
+			}
+			
+		} catch (LineUnavailableException e) {
+			e.printStackTrace();
+		}
+		
 //		new JavaSoundAPIMain();
 		
 //		double f = 400;
