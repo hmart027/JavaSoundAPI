@@ -48,7 +48,7 @@ public class PSEyeCamAudio {
 	
 	public TargetDataLine getTargetDataLine() throws LineUnavailableException{
 		return (TargetDataLine) mixer.getLine(new DataLine.Info(DataLine.class,
-				new AudioFormat(44100, 16, 4, true, true)));
+				new AudioFormat(44100, 16, 4, true, true))); // 44100, 16, 4, true, true
 	}
 	
 	public TargetDataLine getTargetDataLine(AudioFormat format) throws LineUnavailableException{
